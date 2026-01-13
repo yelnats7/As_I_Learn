@@ -1,42 +1,40 @@
-import openpyxl
+import pandas
+import csv
 
-inv_file = openpyxl.load_workbook("inventory.xlsx")
-product_list = inv_file["Sheet1"]
+# Covert excel file to csv file
+def convert_excel(excel_filename):
+    excel_file = pandas.read_excel(str(excel_filename), sheet_name = "Sheet1")
+    csv_file = excel_file.to_csv("temp.csv", index = False)
+    
+    return "temp.csv"
 
-products_per_supplier = {}
-total_value_per_supplier = {}
-products_under_10_inv = {}
 
-for product_row in range(2, product_list.max_row + 1):
-    supplier_name = product_list.cell(product_row, 4).value
-    inventory = product_list.cell(product_row, 2).value
-    price= product_list.cell(product_row, 3).value
-    product_num = product_list.cell(product_row, 1).value
-    inventory_price = product_list.cell(product_row, 5)
+def main():
+    csv_file = convert_excel("inventory.xlsx")
+    with open(csv_file, mode = "r", newline = "") as input_file, open("updated_file.csv", mode = "w", newline = "") as output_file:
+        reader = csv.DictReader(input_file)
+        new_fieldnames = reader.fieldnames + ["Total Inventory"]
 
-    # Calculation number of products per supplier
-    if supplier_name in products_per_supplier:
-        products_per_supplier[supplier_name] = products_per_supplier[supplier_name] + 1
-    else:
-        print("Adding a new supplier")
-        products_per_supplier[supplier_name] = 1
+        writer = csv.DictWriter(output_file, fieldnames = new_fieldnames)
+        writer.writeheader()
+        
+        product_count_per_company = {}
+        product_inventory_less_10 = {}
 
-    # Calculation total number of inventory per supplier
-    if supplier_name in total_value_per_supplier:
-        current_total_value = total_value_per_supplier.get(supplier_name)
-        total_value_per_supplier[supplier_name] = current_total_value + inventory * price
-    else:
-        total_value_per_supplier[supplier_name] = inventory * price
+        for row in reader:
+            # Calculate the product per company
+            if row["Supplier"] in product_count_per_company:
+                product_count_per_company[row["Supplier"]] = product_count_per_company[row["Supplier"]] + 1
+            else:
+                product_count_per_company[row["Supplier"]] = 1
 
-    # Logic of products less than 10
-    if inventory < 10:
-        products_under_10_inv[product_num] = inventory
+            
+            # Calculate product with inventory less than 10
+            if int(row["Inventory"]) < 10:
+                product_inventory_less_10[row["Product No"]] = int(row["Inventory"])
 
-    # Add value for total inventory price
-    inventory_price.value = inventory * price
+            total_inventory = int(row["Inventory"]) * float(row["Price"])
+            row["Total Inventory"] = total_inventory
+            writer.writerow(row)
 
-print(products_per_supplier)
-print(total_value_per_supplier)
-print(products_under_10_inv)
-
-inv_file.save("inventory2.xlsx")
+main()
