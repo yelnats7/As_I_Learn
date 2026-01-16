@@ -1,40 +1,41 @@
 import pandas
-import csv
-
-# Covert excel file to csv file
-def convert_excel(excel_filename):
-    excel_file = pandas.read_excel(str(excel_filename), sheet_name = "Sheet1")
-    csv_file = excel_file.to_csv("temp.csv", index = False)
-    
-    return "temp.csv"
+import sqlite3
 
 
+# Creating a database
+def setup_database(excel_file):
+    dataframe = pandas.read_excel(excel_file, sheet_name = "Sheet1")
+
+    dataframe["Total Inventory"] = dataframe["Inventory"] * dataframe["Price"]
+
+    connection = sqlite3.connect("inventory.db")
+
+    dataframe.to_sql("products", connection, if_exists = "replace", index = False)
+
+    print("Database created, connected and data imported successfully")
+
+    return connection
+
+def sql_queries(connection):
+    cursor = connection.cursor()
+
+    print("--- Products per supplier ---")
+    cursor.execute("SELECT Supplier, COUNT(*) FROM products GROUP BY Supplier")
+
+    for row in cursor.fetchall():
+        print(f"{row[0]}: {row[1]}")
+
+    print("--- Inventory less than 10 ---")
+    cursor.execute("SELECT [Product No], Inventory FROM products WHERE Inventory < 10")
+
+    for row in cursor.fetchall():
+        print(f"Product {row[0]} is low: {row[1]} left")
 def main():
-    csv_file = convert_excel("inventory.xlsx")
-    with open(csv_file, mode = "r", newline = "") as input_file, open("updated_file.csv", mode = "w", newline = "") as output_file:
-        reader = csv.DictReader(input_file)
-        new_fieldnames = reader.fieldnames + ["Total Inventory"]
+    connection = setup_database("inventory.xlsx")
 
-        writer = csv.DictWriter(output_file, fieldnames = new_fieldnames)
-        writer.writeheader()
-        
-        product_count_per_company = {}
-        product_inventory_less_10 = {}
+    sql_queries(connection)
 
-        for row in reader:
-            # Calculate the product per company
-            if row["Supplier"] in product_count_per_company:
-                product_count_per_company[row["Supplier"]] = product_count_per_company[row["Supplier"]] + 1
-            else:
-                product_count_per_company[row["Supplier"]] = 1
+    connection.close()
 
-            
-            # Calculate product with inventory less than 10
-            if int(row["Inventory"]) < 10:
-                product_inventory_less_10[row["Product No"]] = int(row["Inventory"])
-
-            total_inventory = int(row["Inventory"]) * float(row["Price"])
-            row["Total Inventory"] = total_inventory
-            writer.writerow(row)
-
-main()
+if __name__ == "__main__":
+    main()
